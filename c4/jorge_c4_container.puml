@@ -1,44 +1,25 @@
-    C4Context
-      title System Context diagram for Internet Banking System
-      Enterprise_Boundary(b0, "BankBoundary0") {
-        Person(customerA, "Banking Customer A", "A customer of the bank, with personal bank accounts.")
-        Person(customerB, "Banking Customer B")
-        Person_Ext(customerC, "Banking Customer C", "desc")
+@startuml c4_container
+!include [https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml](https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml)
 
-        Person(customerD, "Banking Customer D", "A customer of the bank, <br/> with personal bank accounts.")
+title Container Diagram for PetroAndes OT/IT Integration
 
-        System(SystemAA, "Internet Banking System", "Allows customers to view information about their bank accounts, and make payments.")
+System_Boundary(dmz, "Industrial DMZ (Level 3.5)") {
+    Container(mosquitto, "Eclipse Mosquitto", "C / MQTT", "Broker receiving raw telemetry from edge sensors.")
+    Container(bridge, "OT/IT Bridge", "Python / Node.js", "Normalizes MQTT payloads to CloudEvents and enforces schema.")
+    Container(redpanda, "Redpanda Broker", "C++ / Kafka API", "High-throughput event mesh and schema registry.")
+    Container(detector, "Anomaly Detector", "Python / Java", "Consumes events, evaluates rules, and publishes alerts.")
+    Container(router, "Enterprise Router", "Apache Camel / NiFi", "Routes alerts to the volumetric system.")
+}
 
-        Enterprise_Boundary(b1, "BankBoundary") {
+System_Ext(scada, "Simulated Field Sensors", "Data Generator")
+System_Ext(volumetric, "Volumetric Balance System", "REST API")
 
-          SystemDb_Ext(SystemE, "Mainframe Banking System", "Stores all of the core banking information about customers, accounts, transactions, etc.")
+Rel(scada, mosquitto, "Publishes telemetry", "MQTT (IEC 62443 Conduit)")
+Rel(mosquitto, bridge, "Consumes raw data", "MQTT")
+Rel(bridge, redpanda, "Publishes CloudEvents", "Kafka API")
+Rel(redpanda, detector, "Consumes telemetry", "Kafka API")
+Rel(detector, redpanda, "Publishes alerts", "Kafka API")
+Rel(redpanda, router, "Consumes alerts", "Kafka API")
+Rel(router, volumetric, "POST /segment-status", "HTTPS")
 
-          System_Boundary(b2, "BankBoundary2") {
-            System(SystemA, "Banking System A")
-            System(SystemB, "Banking System B", "A system of the bank, with personal bank accounts. next line.")
-          }
-
-          System_Ext(SystemC, "E-mail system", "The internal Microsoft Exchange e-mail system.")
-          SystemDb(SystemD, "Banking System D Database", "A system of the bank, with personal bank accounts.")
-
-          Boundary(b3, "BankBoundary3", "boundary") {
-            SystemQueue(SystemF, "Banking System F Queue", "A system of the bank.")
-            SystemQueue_Ext(SystemG, "Banking System G Queue", "A system of the bank, with personal bank accounts.")
-          }
-        }
-      }
-
-      BiRel(customerA, SystemAA, "Uses")
-      BiRel(SystemAA, SystemE, "Uses")
-      Rel(SystemAA, SystemC, "Sends e-mails", "SMTP")
-      Rel(SystemC, customerA, "Sends e-mails to")
-
-      UpdateElementStyle(customerA, $fontColor="red", $bgColor="grey", $borderColor="red")
-      UpdateRelStyle(customerA, SystemAA, $textColor="blue", $lineColor="blue", $offsetX="5")
-      UpdateRelStyle(SystemAA, SystemE, $textColor="blue", $lineColor="blue", $offsetY="-10")
-      UpdateRelStyle(SystemAA, SystemC, $textColor="blue", $lineColor="blue", $offsetY="-40", $offsetX="-50")
-      UpdateRelStyle(SystemC, customerA, $textColor="red", $lineColor="red", $offsetX="-50", $offsetY="20")
-
-      UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
-
-
+@enduml
