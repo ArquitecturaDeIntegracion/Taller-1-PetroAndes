@@ -3,21 +3,25 @@ Nivel 1: Contexto del Sistema
 
 ```mermaid
 C4Context
-  title PetroAndes OT/IT Integration - Nivel 1: Contexto
+  title PetroAndes S.A. - Capa de Integración de Telemetría (AndesTransporte)
   
-  Person(operador, "Operador de AndesTransporte", "Supervisa el estado de los tramos y actúa ante alertas de pérdidas.")
-  Person(monitor, "Monitor Académico / Comité", "Evalúa el prototipo funcional, la inyección de anomalías y los escenarios de calidad [3, 4].")
+  Person(analista, "Analista de Conciliación de Pérdidas", "Monitorea el balance volumétrico diario, investiga discrepancias e inicia reclamaciones por hurtos.")
+  Person(operador_ot, "Operador de Centro de Control OT", "Supervisa presiones y caudales en tiempo real a lo largo de los 9,000 km de ductos.")
   
-  System_Ext(sensors, "Sensores de Campo y Simulador (OT)", "Genera y simula señales de telemetría (presión, caudal, temperatura) de pozos y ductos [5].")
+  System_Ext(scada, "Sistema SCADA & AVEVA PI (OT - Nivel 3)", "Sistemas de supervisión industrial e historiadores de señales físicas en estaciones y tramos.")
   
-  System(telemetry_integration, "Solución de Integración (Taller 1)", "Capa de integración dirigida por eventos (EDA) que captura, normaliza, detecta anomalías y enruta alertas [3, 6].")
+  System(telemetry_layer, "Capa de Integración de Telemetría y Alertas (CITA)", "Arquitectura orientada a eventos para captura, normalización y detección temprana de anomalías en ductos.")
   
-  System_Ext(volumetric, "Sistema de Balance Volumétrico (IT)", "Sistema corporativo simulado que consolida el estado del tramo y recibe alertas de posibles válvulas ilícitas [3, 7].")
+  System_Ext(snbv, "Sistema de Nominaciones y Balance Volumétrico (IT - Nivel 4)", "Plataforma que administra solicitudes de capacidad, programas de bombeo y balances mensuales de transporte.")
+  System_Ext(sap, "ERP SAP IS-Oil (IT - Nivel 4)", "Sistema transaccional para la contabilidad de hidrocarburos (HPM) y conciliaciones financieras.")
   
-  Rel(sensors, telemetry_integration, "Publica eventos de telemetría bruta", "MQTT")
-  Rel(telemetry_integration, volumetric, "Envía alertas de anomalías (posibles válvulas ilícitas)", "REST/OpenAPI")
-  Rel(operador, volumetric, "Consulta el estado consolidado de los tramos", "Web/API")
-  Rel(monitor, telemetry_integration, "Monitorea comportamiento del sistema y tópicos en vivo [4]", "Redpanda Console")
+  Rel(scada, telemetry_layer, "Publica eventos de telemetría normalizada", "MQTT / TLS (Nivel 3.5 IDMZ)")
+  Rel(telemetry_layer, snbv, "Envía alertas tempranas de desbalance y caídas de presión", "HTTPS / REST / OpenAPI")
+  Rel(telemetry_layer, sap, "Registra traza de pérdidas anómalas verificadas", "Kafka API / Eventos")
+  Rel(analista, snbv, "Concilia balances volumétricos", "Web Interface")
+  Rel(operador_ot, scada, "Opera válvulas y monitorea presiones", "HMI / SCADA")
+
+
 ```
 
 Nivel 2: Contenedores
