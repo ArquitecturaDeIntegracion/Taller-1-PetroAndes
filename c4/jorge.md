@@ -29,45 +29,48 @@ Nivel 2: Contenedores
 
 ```mermaid
 C4Container
-  title PetroAndes OT/IT Integration - Nivel 2: Contenedores
+  title PetroAndes S.A. - AndesTransporte - Capa de Integración de Telemetría (CITA) - Nivel 2: Contenedores
+  
+  Person(operador, "Operador de Centro de Control (OT)", "Supervisa caudales, presiones y alarmas operativas en tiempo real.")
+  Person(analista, "Analista de Conciliación de Pérdidas (IT)", "Investiga discrepancias de balance volumétrico diario e inicia reclamaciones.")
 
-  Person(operador, "Operador de AndesTransporte", "Supervisa el tramo y las alertas.")
-  Person(monitor, "Monitor Académico", "Evalúa el prototipo en vivo [3, 4].")
+  System_Ext(snbv, "Sistema de Nominaciones y Balance (SNBVT)", "Sistema de Nivel 4 que liquida mensualmente balances y gestiona nominaciones.")
 
-  Boundary(ot_zone, "Nivel 3 - Zona de Operaciones (OT)") {
-    Container(sensors, "Generador de Datos Sintéticos", "Python / Go / JS", "Simula las señales físicas de presión y caudal del oleoducto e inyecta anomalías [5].")
-    ContainerDb(mosquitto, "Broker MQTT (Eclipse Mosquitto)", "Message Broker", "Recibe telemetría bruta de alta frecuencia desde el campo [5].")
+  Boundary(lvl3, "Nivel 3 - Red de Operaciones de AndesTransporte (OT)") {
+    Container(sensors, "Concentrador de Telemetría de Campo", "SCADA RTU / PLC", "Captura señales físicas de sensores de presión y caudal a lo largo de los 9,000 km de ductos.")
+    ContainerDb(mosquitto, "Gateway de Eventos de Planta (Eclipse Mosquitto)", "MQTT Broker (QoS 1)", "Centraliza localmente ráfagas de telemetría de campo de alta frecuencia antes de su envío corporativo.")
   }
 
-  Boundary(idmz, "Nivel 3.5 - DMZ Industrial (IDMZ)") {
-    Container(bridge, "Puente OT-IT (Edge Node)", "Python / Go / Java", "Consume de MQTT, normaliza el envelope a CloudEvents y publica en Redpanda [5].")
+  Boundary(lvl3_5, "Nivel 3.5 - DMZ Industrial (IDMZ)") {
+    Container(bridge, "Puente de Integración Industrial (OT-IT Bridge)", "Python / Go Service", "Consume telemetría MQTT, valida esquemas, normaliza el envelope al estándar CloudEvents y publica hacia IT.")
   }
 
-  Boundary(it_zone, "Nivel 4 - Zona Corporativa (IT)") {
-    ContainerDb(redpanda, "Redpanda (Event Broker)", "Event Streaming Platform", "Log de eventos distribuido con topics de telemetría y alertas [2].")
-    Container(registry, "Schema Registry", "Redpanda Registry", "Gobierna y valida los contratos de datos en formato JSON/Avro [2, 7].")
-    Container(detector, "Detector de Anomalías", "Python / Go / Java", "Analiza ventanas horarias para detectar caídas de presión o descuadres de balance y emite alertas [7].")
+  Boundary(lvl4, "Nivel 4 - Red Corporativa de PetroAndes (IT / Nube)") {
+    ContainerDb(redpanda, "Event Broker Corporativo (Redpanda)", "Kafka-API Engine", "Bus de eventos distribuido e inmutable. Almacena en disco tópicos de telemetría histórica y alertas de anomalías.")
+    Container(registry, "Registro de Esquemas (Schema Registry)", "Redpanda Registry", "Gobierna y versiona los contratos de datos de la corporación para garantizar compatibilidad backward/forward.")
+    Container(detector, "Motor de Detección de Anomalías", "Python / Go (Stateless Window)", "Analiza series de tiempo de presión y caudal en ventanas horarias móviles para detectar caídas de presión y fugas.")
     
-    Boundary(business_app, "Aplicación de Negocio Simulado") {
-      Container(router, "Enrutador de Negocio", "Apache Camel / NiFi", "Consume alertas de Redpanda (EIP) y las enruta a la API [7].")
-      Container(volumetric_api, "API de Balance Volumétrico", "Python / Java / Node.js", "Expone endpoints REST documentados con OpenAPI para registrar alertas y estados [7].")
+    Boundary(business_app, "Capa de Negocio y Conciliación") {
+      Container(router, "Enrutador de Mensajería de Negocio", "Apache Camel / Apache NiFi", "Implementa patrones EIP (como Message Translator y Content-Based Router) para consumir alertas y enviarlas a la API.")
+      Container(volumetric_api, "API del Sistema de Control de Pérdidas", "Python / Java / Node.js", "Expone servicios REST (OpenAPI) para el control operativo de desbalances y registro de incidentes de hurto.")
     }
   }
 
-  %% Flujos de Datos
-  Rel(sensors, mosquitto, "Publica telemetría bruta", "MQTT (QoS 1)")
-  Rel(bridge, mosquitto, "Consume datos de sensores (Pull)", "MQTT (QoS 1)")
-  Rel(bridge, registry, "Valida/Registra esquema", "HTTP")
-  Rel(bridge, redpanda, "Publica CloudEvents validados (Push)", "Kafka API")
+  %% Flujos de Datos e Interfaces de Red (Conductos IEC 62443)
+  Rel(sensors, mosquitto, "Publica telemetría bruta de sensores", "MQTT (QoS 1) / TLS (Interno OT)")
+  Rel(bridge, mosquitto, "Subscribe a tópicos de telemetría (Pull)", "MQTT (QoS 1) / TLS (Entrada IDMZ)")
+  Rel(bridge, registry, "Consulta / Registra esquemas de eventos", "HTTPS / JSON (Salida IDMZ)")
+  Rel(bridge, redpanda, "Publica CloudEvents normalizados (Push)", "Kafka API / TLS / TCP:9092 (Salida IDMZ)")
   
-  Rel(detector, redpanda, "Consume telemetría de ductos", "Kafka API")
-  Rel(detector, redpanda, "Publica alerta de anomalía", "Kafka API")
+  Rel(detector, redpanda, "Consume eventos de telemetría de ductos", "Kafka API / TCP")
+  Rel(detector, redpanda, "Publica alertas de pérdida/fuga", "Kafka API / TCP")
   
-  Rel(router, redpanda, "Consume alertas de anomalías (EIP)", "Kafka API")
-  Rel(router, volumetric_api, "Enruta alerta (POST /alert)", "REST / JSON")
+  Rel(router, redpanda, "Consume alertas de anomalías (EIP)", "Kafka API / TCP")
+  Rel(router, volumetric_api, "Registra alerta en el sistema (POST /alertas)", "HTTPS / REST / JSON")
   
-  Rel(operador, volumetric_api, "Consulta estado del tramo", "HTTP / OpenAPI")
-  Rel(monitor, redpanda, "Monitorea tópicos en vivo [4]", "Redpanda Console")
+  Rel(operador, mosquitto, "Monitorea variables de campo", "HMI / SCADA")
+  Rel(analista, volumetric_api, "Visualiza estado de tramos y auditoría de pérdidas", "HTTPS / Web UI")
+  Rel(volumetric_api, snbv, "Sincroniza estados de balance consolidados", "HTTPS / REST")
 
 
 ```
