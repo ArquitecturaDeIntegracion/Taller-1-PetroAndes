@@ -1,0 +1,151 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/broker/uptime' -C 1 -W 2 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - ot-network
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.2
+    command:
+      - redpanda
+      - start
+      - --mode dev-container
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --advertise-kafka-addr internal://redpanda:9092,external://127.0.0.1:19092
+    ports:
+      - "8081:8081"
+      - "9092:9092"
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --exit-when-healthy >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks:
+      - dmz-network
+      - it-network
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v3.2.2
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      REDPANDA_ADMINAPI_ENABLED: "true"
+      REDPANDA_ADMINAPI_URLS: http://redpanda:9644
+      CONNECT_ENABLED: "false"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+    networks:
+      - it-network
+
+  redpanda-init:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.2
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        rpk topic create it-telemetria-topic --brokers redpanda:9092
+        --partitions 1 --replicas 1 || true;
+        rpk topic create it-alertas-topic --brokers redpanda:9092
+        --partitions 1 --replicas 1 || true
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    networks:
+      - it-network
+
+  simulador-ot:
+    build: ./simulador-ot
+    environment:
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+      AUTO_ANOMALY_AFTER_SECONDS: 60
+      ANOMALY_READINGS: 5
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - ot-network
+
+  puente-dmz:
+    build: ./puente-dmz-python
+    environment:
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+    restart: on-failure
+    networks:
+      - ot-network
+      - dmz-network
+
+  detector-anomalias:
+    build: ./detector-anomalias
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+    restart: on-failure
+    networks:
+      - it-network
+
+  sistema-balance:
+    build: ./sistema-balance
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks:
+      - it-network
+
+  enrutador-alertas:
+    build: ./enrutador-alertas
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      API_URL: http://sistema-balance:8000/alertas
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      sistema-balance:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+    restart: on-failure
+    networks:
+      - it-network
+
+networks:
+  ot-network:
+    driver: bridge
+  dmz-network:
+    driver: bridge
+  it-network:
+    driver: bridge
