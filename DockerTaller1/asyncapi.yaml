@@ -1,0 +1,418 @@
+asyncapi: 3.0.0
+
+info:
+  title: PetroAndes Event-Driven Architecture API
+  version: 1.0.0
+  description: |
+    Especificación AsyncAPI para el sistema de detección de anomalías en ductos de PetroAndes.
+    
+    Este sistema integra redes OT (Operational Technology) e IT (Information Technology) mediante
+    arquitectura basada en eventos para detectar posibles válvulas ilícitas o hurtos de hidrocarburos
+    a través del análisis de telemetría en tiempo real.
+    
+    ## Flujo de datos:
+    1. **Simulador OT** → Publica telemetría vía MQTT
+    2. **Puente DMZ** → Transforma a CloudEvents y publica en Redpanda
+    3. **Detector de Anomalías** → Analiza patrones y genera alertas
+    4. **Enrutador de Alertas** → Integra con sistemas empresariales vía REST
+    
+  contact:
+    name: Equipo de Arquitectura de Integración Grupo 1 - PetroAndes
+
+servers:
+  mosquitto-ot:
+    host: localhost:1883
+    protocol: mqtt
+    description: Broker MQTT para la red OT (Operational Technology)
+    tags:
+      - name: ot-network
+        description: Red operativa aislada
+    security:
+      - $ref: '#/components/securitySchemes/anonymous'
+    
+  redpanda-it:
+    host: localhost:19092
+    protocol: kafka
+    description: Cluster Redpanda para la red IT (Information Technology)
+    tags:
+      - name: it-network
+        description: Red empresarial
+      - name: event-streaming
+        description: Streaming de eventos
+    security:
+      - $ref: '#/components/securitySchemes/kafka-plaintext'
+
+defaultContentType: application/json
+
+channels:
+  petroandesOtDuctoTelemetria:
+    address: petroandes/ot/ducto/telemetria
+    servers:
+      - $ref: '#/servers/mosquitto-ot'
+    description: |
+      Canal MQTT que transporta telemetría desde los sensores SCADA en la red OT.
+      Los datos incluyen mediciones de presión y caudal tomadas cada 2 segundos en operación normal.
+    messages:
+      telemetriaOT:
+        $ref: '#/components/messages/TelemetriaOT'
+    tags:
+      - name: telemetry
+        description: Datos de sensores
+      - name: ot
+        description: Operational Technology
+  
+  itTelemetriaTopic:
+    address: it-telemetria-topic
+    servers:
+      - $ref: '#/servers/redpanda-it'
+    description: |
+      Tópico de Redpanda que contiene telemetría transformada a formato CloudEvents.
+      Este tópico actúa como fuente de verdad para todos los consumidores en la red IT.
+    messages:
+      telemetriaCloudEvent:
+        $ref: '#/components/messages/TelemetriaCloudEvent'
+    tags:
+      - name: telemetry
+        description: Datos de sensores
+      - name: it
+        description: Information Technology
+      - name: cloudevents
+        description: Formato CloudEvents 1.0
+  
+  itAlertasTopic:
+    address: it-alertas-topic
+    servers:
+      - $ref: '#/servers/redpanda-it'
+    description: |
+      Tópico de Redpanda que contiene alertas críticas de seguridad.
+      Las alertas se generan cuando se detecta una anomalía sostenida que sugiere
+      posible válvula ilícita o fuga en el ducto.
+    messages:
+      alertaSeguridad:
+        $ref: '#/components/messages/AlertaSeguridad'
+    tags:
+      - name: alerts
+        description: Alertas de seguridad
+      - name: it
+        description: Information Technology
+      - name: cloudevents
+        description: Formato CloudEvents 1.0
+
+operations:
+  publishTelemetriaOT:
+    action: send
+    channel:
+      $ref: '#/channels/petroandesOtDuctoTelemetria'
+    summary: Publicar telemetría desde SCADA
+    description: |
+      El simulador OT publica métricas operativas del ducto cada 2 segundos.
+      En caso de anomalía, la frecuencia aumenta a 1 segundo.
+    messages:
+      - $ref: '#/channels/petroandesOtDuctoTelemetria/messages/telemetriaOT'
+  
+  subscribeTelemetriaOT:
+    action: receive
+    channel:
+      $ref: '#/channels/petroandesOtDuctoTelemetria'
+    summary: Consumir telemetría desde MQTT
+    description: |
+      El puente DMZ consume telemetría desde el broker MQTT en la red OT
+      para transformarla y replicarla hacia la red IT.
+    messages:
+      - $ref: '#/channels/petroandesOtDuctoTelemetria/messages/telemetriaOT'
+  
+  publishTelemetriaIT:
+    action: send
+    channel:
+      $ref: '#/channels/itTelemetriaTopic'
+    summary: Publicar telemetría transformada a CloudEvents
+    description: |
+      El puente DMZ transforma la telemetría recibida desde MQTT al formato
+      CloudEvents 1.0 y la publica en Redpanda para consumo en la red IT.
+    messages:
+      - $ref: '#/channels/itTelemetriaTopic/messages/telemetriaCloudEvent'
+  
+  subscribeTelemetriaIT:
+    action: receive
+    channel:
+      $ref: '#/channels/itTelemetriaTopic'
+    summary: Consumir telemetría para análisis
+    description: |
+      El detector de anomalías consume telemetría desde Redpanda en la red IT,
+      analiza patrones en ventanas de 3 lecturas consecutivas (~6 segundos)
+      para identificar comportamientos anómalos.
+    messages:
+      - $ref: '#/channels/itTelemetriaTopic/messages/telemetriaCloudEvent'
+  
+  publishAlerta:
+    action: send
+    channel:
+      $ref: '#/channels/itAlertasTopic'
+    summary: Publicar alerta de seguridad
+    description: |
+      El detector de anomalías publica alertas críticas cuando detecta:
+      - Presión < 400 PSI (sostenida en 3 lecturas)
+      - Caudal < 9000 BPD (sostenido en 3 lecturas)
+      
+      Esto sugiere posible válvula ilícita o fuga en el ducto.
+    messages:
+      - $ref: '#/channels/itAlertasTopic/messages/alertaSeguridad'
+  
+  subscribeAlerta:
+    action: receive
+    channel:
+      $ref: '#/channels/itAlertasTopic'
+    summary: Consumir alertas para enrutamiento
+    description: |
+      El enrutador de alertas consume alertas desde Redpanda y las transforma
+      al formato esperado por la API REST del sistema de balance volumétrico.
+    messages:
+      - $ref: '#/channels/itAlertasTopic/messages/alertaSeguridad'
+
+components:
+  messages:
+    TelemetriaOT:
+      name: TelemetriaOT
+      title: Telemetría desde red OT
+      summary: Métricas operativas del ducto capturadas por sensores SCADA
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TelemetriaOTPayload'
+      examples:
+        - name: operacionNormal
+          summary: Operación normal del ducto
+          payload:
+            tramo: Tramo-Centro
+            presion_psi: 505.23
+            caudal_bpd: 10025.45
+            timestamp: 1735574400.123
+        - name: anomaliaDetectada
+          summary: Lectura anómala indicando posible fuga
+          payload:
+            tramo: Tramo-Centro
+            presion_psi: 305.12
+            caudal_bpd: 8050.67
+            timestamp: 1735574460.456
+      tags:
+        - name: scada
+          description: Sistema SCADA
+    
+    TelemetriaCloudEvent:
+      name: TelemetriaCloudEvent
+      title: Telemetría en formato CloudEvents
+      summary: Telemetría transformada al estándar CloudEvents 1.0
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/CloudEventTelemetria'
+      examples:
+        - name: operacionNormalCloudEvent
+          summary: Telemetría normal envuelta en CloudEvent
+          payload:
+            specversion: "1.0"
+            type: telemetria.ducto
+            source: /petroandes/ot/scada
+            datacontenttype: application/json
+            data:
+              tramo: Tramo-Centro
+              presion_psi: 505.23
+              caudal_bpd: 10025.45
+              timestamp: 1735574400.123
+      tags:
+        - name: cloudevents
+          description: CloudEvents 1.0
+    
+    AlertaSeguridad:
+      name: AlertaSeguridad
+      title: Alerta de seguridad crítica
+      summary: Alerta generada por detección de anomalía sostenida
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/CloudEventAlerta'
+      examples:
+        - name: alertaValvulaIlicita
+          summary: Alerta de posible válvula ilícita detectada
+          payload:
+            specversion: "1.0"
+            type: alerta.seguridad.valvula_ilicita
+            source: /petroandes/it/detector
+            id: 550e8400-e29b-41d4-a716-446655440000
+            datacontenttype: application/json
+            data:
+              nivel_riesgo: CRITICO
+              tramo: Tramo-Centro
+              descripcion: Caída anómala de presión sostenida y descuadre de caudal detectado en ventana horaria.
+              presion_actual_psi: 305.12
+              caudal_actual_bpd: 8050.67
+
+  schemas:
+    TelemetriaOTPayload:
+      type: object
+      title: Payload de Telemetría OT
+      description: Estructura de datos de telemetría capturada en la red OT
+      required:
+        - tramo
+        - presion_psi
+        - caudal_bpd
+        - timestamp
+      properties:
+        tramo:
+          type: string
+          description: Identificador del tramo del ducto siendo monitoreado
+          examples:
+            - Tramo-Centro
+            - Tramo-Norte
+            - Tramo-Sur
+        presion_psi:
+          type: number
+          format: float
+          description: |
+            Presión medida en libras por pulgada cuadrada (PSI).
+            Rango normal de operación: 500-510 PSI.
+            Umbral de alerta: < 400 PSI.
+          minimum: 0
+          maximum: 1000
+          examples:
+            - 505.23
+            - 307.45
+        caudal_bpd:
+          type: number
+          format: float
+          description: |
+            Caudal medido en barriles por día (BPD).
+            Rango normal de operación: 10000-10050 BPD.
+            Umbral de alerta: < 9000 BPD.
+          minimum: 0
+          maximum: 50000
+          examples:
+            - 10025.45
+            - 8050.67
+        timestamp:
+          type: number
+          format: double
+          description: Marca de tiempo Unix (epoch) con precisión de microsegundos
+          examples:
+            - 1735574400.123456
+    
+    CloudEventTelemetria:
+      type: object
+      title: CloudEvent de Telemetría
+      description: Telemetría envuelta en formato CloudEvents 1.0
+      required:
+        - specversion
+        - type
+        - source
+        - datacontenttype
+        - data
+      properties:
+        specversion:
+          type: string
+          const: "1.0"
+          description: Versión de la especificación CloudEvents
+        type:
+          type: string
+          const: telemetria.ducto
+          description: Tipo de evento que identifica telemetría de ducto
+        source:
+          type: string
+          const: /petroandes/ot/scada
+          description: Origen del evento en el sistema SCADA
+        datacontenttype:
+          type: string
+          const: application/json
+          description: Tipo de contenido del payload de datos
+        data:
+          $ref: '#/components/schemas/TelemetriaOTPayload'
+    
+    CloudEventAlerta:
+      type: object
+      title: CloudEvent de Alerta
+      description: Alerta de seguridad envuelta en formato CloudEvents 1.0
+      required:
+        - specversion
+        - type
+        - source
+        - id
+        - datacontenttype
+        - data
+      properties:
+        specversion:
+          type: string
+          const: "1.0"
+          description: Versión de la especificación CloudEvents
+        type:
+          type: string
+          const: alerta.seguridad.valvula_ilicita
+          description: Tipo de evento que identifica alerta de seguridad
+        source:
+          type: string
+          const: /petroandes/it/detector
+          description: Origen del evento en el detector de anomalías
+        id:
+          type: string
+          format: uuid
+          description: Identificador único de la alerta (UUID v4)
+          examples:
+            - 550e8400-e29b-41d4-a716-446655440000
+        datacontenttype:
+          type: string
+          const: application/json
+          description: Tipo de contenido del payload de datos
+        data:
+          $ref: '#/components/schemas/AlertaPayload'
+    
+    AlertaPayload:
+      type: object
+      title: Payload de Alerta
+      description: Datos detallados de la alerta de seguridad
+      required:
+        - nivel_riesgo
+        - tramo
+        - descripcion
+        - presion_actual_psi
+        - caudal_actual_bpd
+      properties:
+        nivel_riesgo:
+          type: string
+          enum:
+            - CRITICO
+            - ALTO
+            - MEDIO
+            - BAJO
+          description: Nivel de criticidad de la alerta
+          examples:
+            - CRITICO
+        tramo:
+          type: string
+          description: Identificador del tramo afectado
+          examples:
+            - Tramo-Centro
+        descripcion:
+          type: string
+          description: Descripción detallada de la anomalía detectada
+          examples:
+            - Caída anómala de presión sostenida y descuadre de caudal detectado en ventana horaria.
+        presion_actual_psi:
+          type: number
+          format: float
+          description: Última lectura de presión al momento de generar la alerta
+          examples:
+            - 305.12
+        caudal_actual_bpd:
+          type: number
+          format: float
+          description: Última lectura de caudal al momento de generar la alerta
+          examples:
+            - 8050.67
+
+  securitySchemes:
+    anonymous:
+      type: userPassword
+      description: |
+        Acceso anónimo sin autenticación. 
+        ⚠️ SOLO PARA DEMO LOCAL. En producción debe implementarse autenticación robusta.
+    
+    kafka-plaintext:
+      type: plain
+      description: |
+        Autenticación SASL/PLAIN para Redpanda.
+        En producción debe complementarse con TLS/SSL.
