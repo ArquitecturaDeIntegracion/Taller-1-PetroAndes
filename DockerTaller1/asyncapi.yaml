@@ -14,7 +14,7 @@ info:
     1. **Simulador OT** → Publica telemetría vía MQTT
     2. **Puente DMZ** → Transforma a CloudEvents y publica en Redpanda
     3. **Detector de Anomalías** → Analiza patrones y genera alertas
-    4. **Enrutador de Alertas** → Integra con sistemas empresariales vía REST
+    4. **Apache Camel** → Valida y transforma alertas, integra vía REST y deriva errores a DLQ
     
   contact:
     name: Equipo de Arquitectura de Integración Grupo 1 - PetroAndes
@@ -98,7 +98,26 @@ channels:
       - name: cloudevents
         description: Formato CloudEvents 1.0
 
+  itAlertasDlq:
+    address: it-alertas-dlq
+    servers:
+      - $ref: '#/servers/redpanda-it'
+    description: |
+      Eventos rechazados o que agotaron sus intentos de entrega a balance.
+      Apache Camel espera el acuse del broker antes de confirmar el offset de origen.
+      La recuperación requiere publicar original_event en it-alertas-topic.
+    messages:
+      errorIntegracion:
+        $ref: '#/components/messages/ErrorIntegracion'
+
 operations:
+  publishErrorIntegracion:
+    action: send
+    channel:
+      $ref: '#/channels/itAlertasDlq'
+    summary: Apache Camel conserva eventos fallidos para revisión y reenvío
+    messages:
+      - $ref: '#/channels/itAlertasDlq/messages/errorIntegracion'
   publishTelemetriaOT:
     action: send
     channel:
@@ -171,6 +190,31 @@ operations:
 
 components:
   messages:
+    ErrorIntegracion:
+      name: ErrorIntegracion
+      contentType: application/json
+      payload:
+        type: object
+        required: [original_event, error, attempts, failed_at, topic, partition, offset]
+        properties:
+          original_event:
+            type: string
+            description: Texto original del evento, incluso cuando no es JSON válido.
+          error:
+            type: string
+          attempts:
+            type: integer
+            minimum: 0
+            maximum: 4
+          failed_at:
+            type: string
+            format: date-time
+          topic:
+            type: string
+          partition:
+            type: string
+          offset:
+            type: string
     TelemetriaOT:
       name: TelemetriaOT
       title: Telemetría desde red OT
