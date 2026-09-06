@@ -29,6 +29,8 @@ services:
       - "8081:8081"
       - "9092:9092"
       - "19092:19092"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health --exit-when-healthy >/dev/null 2>&1"]
       interval: 10s
@@ -60,10 +62,11 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
-        rpk topic create it-telemetria-topic --brokers redpanda:9092
-        --partitions 1 --replicas 1 || true;
-        rpk topic create it-alertas-topic --brokers redpanda:9092
-        --partitions 1 --replicas 1 || true
+        set -eu;
+        for topic in it-telemetria-topic it-alertas-topic it-alertas-dlq; do
+          rpk topic describe "$$topic" --brokers redpanda:9092 >/dev/null 2>&1 ||
+          rpk topic create "$$topic" --brokers redpanda:9092 --partitions 1 --replicas 1;
+        done
     depends_on:
       redpanda:
         condition: service_healthy
@@ -116,6 +119,10 @@ services:
 
   sistema-balance:
     build: ./sistema-balance
+    environment:
+      BALANCE_DB_PATH: /data/balance.db
+    volumes:
+      - balance-data:/data
     ports:
       - "8000:8000"
     healthcheck:
@@ -142,6 +149,23 @@ services:
     networks:
       - it-network
 
+  integration-tests:
+    profiles: ["tests"]
+    build: ./detector-anomalias
+    command: ["python", "/tests/test_integration.py"]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      BALANCE_URL: http://sistema-balance:8000
+    volumes:
+      - ./tests:/tests:ro
+    depends_on:
+      enrutador-alertas:
+        condition: service_started
+      sistema-balance:
+        condition: service_healthy
+    networks:
+      - it-network
+
 networks:
   ot-network:
     driver: bridge
@@ -149,3 +173,7 @@ networks:
     driver: bridge
   it-network:
     driver: bridge
+
+volumes:
+  redpanda-data:
+  balance-data:
