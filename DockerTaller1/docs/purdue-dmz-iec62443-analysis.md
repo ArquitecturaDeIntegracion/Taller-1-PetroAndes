@@ -232,3 +232,172 @@ __________________________________________________________________________
 Según NIST SP 800-82r3, "Restricting OT user privileges and implementing automated controls trat prevent unauthorized commands from IT systems to OT systems is essential for maintaining safety and preventing unintended consequences from compromised IT systems."
 
 ---
+
+## 3. IEC 62443 - Ciberseguridad Industrial mediante zonas y conductos
+
+### 3.1 Estándar ISA/IEC 62443
+
+**IEC 62443** es el estándar global líder en ciberseguridadpara sistemas de automatización y control industrial, desarrollado conjuntamente por:
+- **ISA (International Society of Automation)**
+- **IEC (International Electrotechnical Comission)**
+
+**Definición Oficial (IEC 62443-1-1 Models and Concepts):**
+
+IEC 62443 define una arquitectura de zonas y conductos que segmenta los sistemas industriales en regiones lógicas con requisitos de seguridad comunes, e implementa defensa en profundidad mediante 4 niveles de seguridad en función del riesgo del negocio.
+
+**Concepto Central: ZONAS + CONDUCTOS**
+
+- **Zona:** Agrupación de dispositivos, sistemas y aplicaciones con **requisitos de seguridad comunes**
+- **Conducto:** Agrupación de canales de comunicación que **conectan dos o más zonas**, compartiendo reglas de tráfico específicas.
+
+### 3.2 Zonas de Seguridad en la Solución de PetroAndes
+
+#### Zona 1: OT Local (Nivel 0-2)
+
+**Componentes:**
+- Simulador de sensores (simulador-ot.py)
+- MQTT Broker (Mosquitto) en el puerto 1883
+- Red Docker: `ot-network`
+
+**Caracteristicas de Seguridad:**
+- Aislamiento físico (red Docker separada)
+- Acceso anónimo (demo; en prod: credenciales requeridas)
+- Protocolo: MQTT (publish/subscribe sin TLS en demo)
+- Criticidad: **ALTA** (control de procesos en tiempo real)
+
+**Nivel de Seguridad (IEC 62443):** SL2 (Proteccón contra uso indebido intencionado mediante medios sencillos)
+
+#### Zona 2: DMZ Industrial (Nivel 3.5)
+
+**Componentes:**
+- Puente DMZ (puente.py)
+- Red Docker: `dmz-network`
+
+**Características de seguridad:**
+- Validación de esquema (rechaza mensajes malformados)
+- Normalización obligatoria (CloudEvents)
+- Unidireccional (OT entrada, IT salida, no retorno)
+- Logging de toda transición
+- Control de acceso implícito (solo tráfico autorizado por Puente)
+
+**Nivel de Seguridad (IEC 62443):** SL3 (Protección contra ataques sofisticados con recursos moderados)
+
+#### Zona 3: IT Corporativo (Nivel 3-4)
+
+**Componentes:**
+- Redpanda (Event Broker) puerto 9092
+- Detector de anomalías
+- Enrutador de alertas
+- API REST (sistema-balance) pueto 8000
+- Redpanda Console (BI) puerto 8082
+- Red Docker: `it-network`
+
+**Características de seguridad:**
+- Aislamiento de red (no conecta directo a OT)
+- Acceso solo a través de DMZ
+- Esquemas validados por Schema Registry (en prod: RBAC)
+- ACLs en Redpanda (en demo: permisivo; en prod: RBAC)
+- Criticidad: **MEDIA-BAJA** (análisis, decisiones, no control)
+
+**Nivel de Seguridad (IEC 62443):** SL2 (Suficiente para análisis; SL3+ si hay escritura a OT)
+
+### 3.3 Conductos de Seguridad
+
+Un conducto es un **camino específico entre zonas donde datos cruzan reglas explícitas de tráfico.**
+
+#### Conducto A: OT -> IT (Telemetría)
+
+```
+Zona OT              Conducto A              Zona IT
+________________     (Validado)          ________________
+| Sensor OT    |----------MQTT---------->| Puente DMZ   |
+| (MQTT: 1883) |     1. Recibe           | 1. Valida    |
+|              |     2. Normaliza        | 2. Normaliza |
+|______________|     3. Publica          | 3. Publica   |
+                        (Kafka)          |______________|
+                                                |
+                                                |
+                                                |
+                                                ▼
+                                         ___________________
+                                         | Redpanda        |
+                                         | (Topis: it-...) |
+                                         |                 |
+                                         | Detector,       |
+                                         | API REST        |
+                                         |_________________|
+```
+
+**Reglas del Conducto OT -> IT:**
+
+| Regla | Implementación |
+|-------|----------------|
+| **Permitido:** Leer datos MQTT | `puente.py` linea 30: `on_message(client, userdata, msg)` |
+| **Permitido:** Validar esquema | Linea 35-37: campos obligatorios |
+| **Permitido:** Enriquecer con metadata | CloudEvents: specversion, type, source, timestamp |
+| **No permitido:** Escribir de vuelta a MQTT | Codigo no lo hace; política ISA-95 |
+| **No permitido:** Pasar datos sin normalizar | Todo pasa por CloudEvents antes de Kafka |
+| **Auditado:** Registrar tránsito | Logs de puente (Docker logs) |
+
+**Garantías de confiabilidad:**
+
+- **At-least-once delivery:** Si el puente falla, los mensajes se reintentan.
+- **No duplicación de datos:** Schema Registy al ser implementado, evita duplicados.
+- **Trazabilidad:** Cada mensaje tiene `timestamp` y `source` en CloudEvents.
+
+#### Conducto B: IT -> OT (Retorno de Comandos)
+
+```
+Zona IT              Conducto B          Zona IT
+________________     (Vacío)        ________________
+| API REST     |-------------------X| MQTT         |
+|              |  (No hay retorno)  | (No recibe   |
+| Retorno      |                    | comandos)    |
+|______________|                    |              |
+                                    |______________|
+```
+
+Política cumplida: IT no escribe en OT.
+
+**Reglas del conducto IT -> OT:**
+
+| Regla | Implementación |
+|-------|----------------|
+| **No permitido:** Escribir a MQTT | Código IT no lo hace |
+| **No permitido:** Cambiar a setpoints SCADA | No existe endpoint para ello |
+| **No permitido:** Comandar válvulas | API REST es solo lectura y estadísticas |
+| **Permitido:** Notificar al operador | API devuelve alertas que operador ve manualmente |
+
+**Justificación (IEC 62443):**
+
+Según el estándar, esta unidireccionalidad es defensa en profundidad. Que IT esté comprometido no debe afectar control OT. Si se necesita actuar:
+
+```
+Escenario: Detectar válvula ilícita -> actuar
+|-> Detector pública alerta en it-alertas-topic
+|-> API REST muestra alerta en dashboard
+|-> Operador humano revisa y aprueba la acción
+|-> Operador ejecuta cierre manual en SCADA (o orden verbal a campo)
+    |-> No es automático desde IT
+```
+
+### 3.4 Niveles de Seguridad IEC 62443 (SL 1-4)
+
+IEC 62443 define **4 niveles de seguridad** basados en capacidad del atacante y recursos disponibles:
+
+| Nivel | Nombre | Descripción | Ejemplos de Protección | Aplicable a PetroAndes |
+|-------|--------|-------------|------------------------|------------------------|
+| **SL1** | Protección básica | Defiende contra uso indebido involuntario | Cambios de contraseña regulares, logs básicos | No aplicable (infraestructura crítica) |
+| **SL2** | Protección estándar | Defiende contra ataques simples (script kiddies, errores) | Firewalls, RBAC, auditoría básica, cambios de config | **Zona OT + DMZ (actual)** |
+| **SL3** | Protección avanzada | Defiende contra ataques sofisticados (adversarios con recursos) | IDS/IPS, segmentación fina, Zero Trust, monitoreo continuo, hardening | **Zona IT (recomendado para ampliación)** |
+| **SL4** | Protección máxima | Defiende contra ataques APT (Advanced Persistent Threats) con equipo especializado | Defensa en profundidad total, encriptación E2E, aislamiento air-grap, verificación formal | **No presente en demo; requerido en prod pars SIS (Safety Instrumented Systems)** |
+
+**Evaluación de la solución actual:**
+
+```
+Zona OT:            SL2 OK (aislamiento básico, demo sin TLS)
+Zona DMZ:           SL3 OK (validación + normalización)
+Zona IT:            SL2 OK (aislamiento, pero sin IDS/IPS activos)
+Conducto OT->IT     SL3 OK (validación + unidireccionalidad)
+Conducto IT->OT     N/A OK (no existe por poíticas de seguridad)
+```
