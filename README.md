@@ -23,9 +23,9 @@ Repositorio del Taller 1 de PetroAndes.
 - [API REST del sistema de balance](./DockerTaller1/sistema-balance/)
 - [Pruebas automáticas](./DockerTaller1/tests/)
 
-## Mapa de la rúbrica de evaluación
+## Mapa del repositorio
 
-| Criterio | Evidencia en el repositorio |
+| Requerimiento | Ubicación en el repositorio |
 | --- | --- |
 | Diseño arquitectónico y calidad de los ADRs | [ADRs](./ADRs/), [Diagrama C4](./C4%20Diagram/Arquitectura%20de%20Integración%20Taller%201.drawio) |
 | Contrato AsyncAPI/CloudEvents y gobierno del esquema | [AsyncAPI](./DockerTaller1/asyncapi.yaml), [ADR-03](./ADRs/ADR-03:%20Estandarización%20de%20Eventos%20con%20CloudEvents%20y%20Gobierno%20del%20Esquema.md) |
