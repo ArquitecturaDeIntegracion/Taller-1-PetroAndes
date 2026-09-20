@@ -1,7 +1,7 @@
 # Taller-1-PetroAndes
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/24c28243-db13-46cd-892d-57686460ab01" alt="Arquitectura de integración PetroAndes" width="500" />
+  <img src="https://github.com/user-attachments/assets/24c28243-db13-46cd-892d-57686460ab01" alt="Arquitectura de integración PetroAndes" width="200" />
 </p>
 
 Repositorio del Taller 1 de PetroAndes.
