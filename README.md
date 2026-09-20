@@ -1,5 +1,9 @@
 # Taller-1-PetroAndes
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/24c28243-db13-46cd-892d-57686460ab01" alt="Arquitectura de integración PetroAndes" width="500" />
+</p>
+
 Repositorio del Taller 1 de PetroAndes.
 
 ## Índice del contenido solicitado en el enunciado
@@ -49,5 +53,3 @@ Repositorio del Taller 1 de PetroAndes.
 - **Integración con negocio y API REST/OpenAPI:** [enrutador-alertas](./DockerTaller1/enrutador-alertas/) y [sistema-balance](./DockerTaller1/sistema-balance/)
 - **Instrucciones reproducibles de ejecución:** [README técnico](./DockerTaller1/README.md)
 - **Pruebas de soporte para la demostración:** [tests](./DockerTaller1/tests/)
-
-<img width="1254" height="1254" alt="image" src="https://github.com/user-attachments/assets/24c28243-db13-46cd-892d-57686460ab01" />
