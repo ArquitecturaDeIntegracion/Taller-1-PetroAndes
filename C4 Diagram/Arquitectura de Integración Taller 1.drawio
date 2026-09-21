@@ -211,6 +211,9 @@
             <mxGeometry height="230" width="278" x="1600" y="437" as="geometry" />
           </mxCell>
         </UserObject>
+        <mxCell id="-Veap0zJb8_rhOc08qwQ-1" parent="9hrkWAh93loWukaC4MyG-2" style="text;whiteSpace=wrap;align=center;" value="PetroAndes S.A. - Nivel1: Contexto&#xa;Plataforma de Integración OT/IT de PetroAndes - Contexto del Sistema" vertex="1">
+          <mxGeometry height="50" width="560" x="1119.25" y="80" as="geometry" />
+        </mxCell>
         <mxCell id="9hrkWAh93loWukaC4MyG-45" edge="1" parent="1" source="9hrkWAh93loWukaC4MyG-46" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="9hrkWAh93loWukaC4MyG-9">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -219,9 +222,6 @@
             <mxGeometry height="105" width="221" x="2099" y="560" as="geometry" />
           </mxCell>
         </UserObject>
-        <mxCell id="9hrkWAh93loWukaC4MyG-47" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=16;fontColor=light-dark(#333333,#cccccc);align=left;verticalAlign=top;spacingLeft=357;" value="PetroAndes S.A. - Nivel1: Contexto&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="24" width="980" x="880" y="90" as="geometry" />
-        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
