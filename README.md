@@ -12,7 +12,7 @@ Repositorio del Taller 1 de PetroAndes.
 - [Enunciado del taller](./enunciado-taller1.md)
 
 ### Entregables principales
-- [README de ejecución reproducible](./DockerTaller1/README.md)
+- [README de pasos para reproducir el ejercicio](./DockerTaller1/README.md)
 - [Infraestructura con Docker Compose](./DockerTaller1/docker-compose.yaml)
 - [Contrato de eventos AsyncAPI 3.0](./DockerTaller1/asyncapi.yaml)
 - [ADRs de arquitectura](./ADRs/)
