@@ -32,9 +32,9 @@ Repositorio del Taller 1 de PetroAndes.
 | Requerimiento | Ubicación en el repositorio |
 | --- | --- |
 | Diseño arquitectónico y calidad de los ADRs | [ADRs](./ADRs/), [Diagrama C4](./C4%20Diagram/Arquitectura%20de%20Integración%20Taller%201.drawio) |
-| Contrato AsyncAPI/CloudEvents y gobierno del esquema | [AsyncAPI](./DockerTaller1/asyncapi.yaml), [ADR-03](./ADRs/ADR-03:%20Estandarización%20de%20Eventos%20con%20CloudEvents%20y%20Gobierno%20del%20Esquema.md) |
+| Contrato AsyncAPI/CloudEvents y gobierno del esquema | [AsyncAPI](./DockerTaller1/asyncapi.yaml), [ADR-03](./ADRs/ADR-03%20-%20Estandarización%20de%20Eventos%20con%20CloudEvents%20y%20Gobierno%20del%20Esquema.md) |
 | Implementación funcional (broker, MQTT, puente, flujo, detección) | [Docker Compose](./DockerTaller1/docker-compose.yaml), [simulador-ot](./DockerTaller1/simulador-ot/), [puente-dmz-python](./DockerTaller1/puente-dmz-python/), [detector-anomalias](./DockerTaller1/detector-anomalias/), [enrutador-alertas](./DockerTaller1/enrutador-alertas/), [sistema-balance](./DockerTaller1/sistema-balance/), [tests](./DockerTaller1/tests/) |
-| Calidad del análisis IT/OT (Purdue, DMZ, IEC 62443) | [Purdue Analysis](./Purdue%20Analysis/), [ADR-02](./ADRs/ADR-02:%20Posicionamiento%20Seguro%20del%20Puente%20de%20Integración%20OT-IT.md) |
+| Calidad del análisis IT/OT (Purdue, DMZ, IEC 62443) | [Purdue Analysis](./Purdue%20Analysis/), [ADR-02](./ADRs/ADR-02%20-%20Posicionamiento%20Seguro%20del%20Puente%20de%20Integración%20OT-IT.md) |
 | Sustentación | [Guía de ejecución y validación](./DockerTaller1/README.md), [Enunciado](./enunciado-taller1.md#sustentación) |
 
 ## Detalle por requerimiento del enunciado
@@ -43,7 +43,7 @@ Repositorio del Taller 1 de PetroAndes.
 - **Diagrama C4 (contexto y contenedores):** [C4 Diagram](./C4%20Diagram/Arquitectura%20de%20Integración%20Taller%201.drawio)
 - **Modelo Purdue, DMZ industrial y conductos IEC 62443:** [Purdue Analysis](./Purdue%20Analysis/)
 - **ADRs con decisiones y alternativas descartadas:** [ADRs](./ADRs/)
-- **Contrato de eventos con AsyncAPI, CloudEvents y compatibilidad:** [AsyncAPI](./DockerTaller1/asyncapi.yaml) y [ADR-03](./ADRs/ADR-03:%20Estandarización%20de%20Eventos%20con%20CloudEvents%20y%20Gobierno%20del%20Esquema.md)
+- **Contrato de eventos con AsyncAPI, CloudEvents y compatibilidad:** [AsyncAPI](./DockerTaller1/asyncapi.yaml) y [ADR-03](./ADRs/ADR-03%20-%20Estandarización%20de%20Eventos%20con%20CloudEvents%20y%20Gobierno%20del%20Esquema.md)
 
 ### Parte práctica
 - **Broker de eventos, consola y schema registry:** [docker-compose.yaml](./DockerTaller1/docker-compose.yaml)
