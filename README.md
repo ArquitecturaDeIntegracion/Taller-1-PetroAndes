@@ -21,7 +21,7 @@ Repositorio del Taller 1 de PetroAndes.
 
 ### Implementación funcional
 - [Simulación OT](./DockerTaller1/simulador-ot/)
-- [Puente OT→IT por DMZ](./DockerTaller1/puente-dmz-python/)
+- [Puente OT->IT por DMZ](./DockerTaller1/puente-dmz-python/)
 - [Detector de anomalías](./DockerTaller1/detector-anomalias/)
 - [Flujo de integración / enrutamiento de alertas](./DockerTaller1/enrutador-alertas/)
 - [API REST del sistema de balance](./DockerTaller1/sistema-balance/)
